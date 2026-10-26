@@ -164,6 +164,18 @@ func newVersionCommand(version, commit string) *cobra.Command {
 	}
 }
 
+func shouldSkipFallbackFlag(cmd *cobra.Command, flagName string) bool {
+	if cmd.Flags().Changed(flagName) {
+		return true
+	}
+	// --region and --all-regions are mutually exclusive; if --all-regions was
+	// explicitly passed on the CLI, do not let environment or config set region.
+	if flagName == "region" && cmd.Flags().Changed("all-regions") {
+		return true
+	}
+	return false
+}
+
 // flag > environment > default
 func applyEnv(cmd *cobra.Command) error {
 	for flagName, envName := range map[string]string{
@@ -177,7 +189,7 @@ func applyEnv(cmd *cobra.Command) error {
 		"idle-window-days":  "ZOMBIE_SCANNER_IDLE_WINDOW_DAYS",
 		"keep-tag":          "ZOMBIE_SCANNER_KEEP_TAG",
 	} {
-		if cmd.Flags().Changed(flagName) {
+		if shouldSkipFallbackFlag(cmd, flagName) {
 			continue
 		}
 		v, ok := os.LookupEnv(envName)
@@ -227,7 +239,7 @@ func applyConfig(cmd *cobra.Command, o *options) error {
 	}
 
 	for flagName, value := range f.FlagValues() {
-		if cmd.Flags().Changed(flagName) {
+		if shouldSkipFallbackFlag(cmd, flagName) {
 			continue
 		}
 		if err := cmd.Flags().Set(flagName, value); err != nil {
